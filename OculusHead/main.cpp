@@ -20,14 +20,15 @@ ovrHmd hmd;				//handler for the Oculus
 /* CV */
 VideoCapture capL(0);	//capture cameras
 VideoCapture capR(1);
-int capWidth   = 1080;	//size for capturing
-int capHeight  = 720;
-int showWidth  = 1000;	//size for showing
-int showHeight = 960;
-double realWidthL = 0;
-double realHeightL = 0;
-double realWidthR = 0;
-double realHeightR = 0;
+int		capWidth   = 1080;	//size for capturing
+int		capHeight  = 720;
+int		showWidth  = 1000;	//size for showing
+int		showHeight = 960;
+double	realWidthL  = 0;
+double	realHeightL = 0;
+double	realWidthR  = 0;
+double	realHeightR = 0;
+int		fps = 60;
 
 /* Serial */
 Serial* SP;
@@ -70,14 +71,12 @@ int Init () {
 	cvMoveWindow("main monitor", 0, 0);
 
 	/* Connect to serial */
-	/*
 	SP = new Serial("\\\\.\\COM38");
 	if (SP->IsConnected() == false) {
 		return -2;
 	} else {
 		cout << "Serial OK!" << endl;
 	}
-	*/
 
 	/* Success */
 	return 1;
@@ -87,15 +86,19 @@ int Loop () {
 	Mat frameL, frameR;
 	Mat composition;
 
+	int delay = 1000/fps;
 	int frame = 0;
-	char deg = 0;
+	int counter = 10;
+
+	char cYaw;
+	char cPitch;
+	//char cRoll;
 
 	while (true) {
 		/* Get orientation as a Quaternion */
 		ovrHmd_BeginFrameTiming(hmd, frame);
 		ovrTrackingState trackState = ovrHmd_GetTrackingState(hmd, ovr_GetTimeInSeconds());
 		ovrQuatf curOrient = trackState.HeadPose.ThePose.Orientation;
-		//cout << curOrient.x << " " << curOrient.y << " " << curOrient.z << " " << curOrient.w << endl;
 		ovrHmd_EndFrameTiming(hmd);
 		frame++;
 
@@ -103,14 +106,38 @@ int Loop () {
 		float eyeYaw, eyePitch, eyeRoll;
 		OVR::Quatf l_Orientation = OVR::Quatf(curOrient);
 		l_Orientation.GetEulerAngles<OVR::Axis_Y, OVR::Axis_X, OVR::Axis_Z>(&eyeYaw, &eyePitch, &eyeRoll);
-		cout << OVR::RadToDegree(eyeYaw) << "   \t" << OVR::RadToDegree(eyePitch) << "   \t" << OVR::RadToDegree(eyeRoll) << endl;
+		eyeYaw		= OVR::RadToDegree(eyeYaw);
+		eyePitch	= OVR::RadToDegree(eyePitch);
+		eyeRoll		= OVR::RadToDegree(eyeRoll);
+		//cout << eyeYaw << "   \t" << eyePitch << "   \t" << eyeRoll << endl;
 		
 		/* Write to serial */
-		deg = (char)(eyeYaw * 2);
-		deg = (deg < 0) ? 0 : deg;
-		deg = (deg > 255) ? 255 : deg;
-		//deg = 255;
-		//SP->WriteData(&deg, 1);
+		//if (counter++ > 3) {
+
+			/* Pitch */
+			cPitch	= (char)(eyePitch + 90);
+
+			/* Yaw */
+			/* Gimbal lock on pitches 0 and 180, don't change yaw*/
+			if ((eyePitch+90) > 10 && (eyePitch+90) < 170) {
+				if (eyeYaw >= 0 && eyeYaw <= 180) {
+					cYaw = (char)eyeYaw;
+				} else if (eyeYaw > -90) {
+					cYaw = (char)0;
+				} else if (eyeYaw < -90) {
+					cYaw = (char)180;
+				}
+			}
+
+			/* Roll */
+			//unused
+
+			cout << "Yaw: " << (int)cYaw << "\tPitch: " << (int)cPitch << endl;
+
+			SP->WriteData(&cYaw, 1);
+			SP->WriteData(&cPitch, 1);
+			//counter = 1;
+		//}
 
 		/* Read from cameras */
 		bool bSuccessL = capL.read(frameL);
@@ -126,8 +153,8 @@ int Loop () {
 		resize(frameR, frameR, Size(showWidth,showHeight), 0, 0, INTER_CUBIC);
 		
 		/* Make composite image */
-		composition = Mat(1920, 1080, frameL.type());				//create matrix to join the captured images, args: rows, columns
-		Mat left  (composition, Rect(0,   0, showWidth, showHeight));	//put frames on matrix, args: x, y, w, h
+		composition = Mat(1920, 1080, frameL.type());					//create matrix to join the captured images, args: rows, columns
+		Mat left  (composition, Rect(0, 0, showWidth, showHeight));		//put frames on matrix, args: x, y, w, h
 		frameL.copyTo (left);
 		Mat right (composition, Rect(1080-showWidth, 960, showWidth, showHeight));
 		frameR.copyTo (right);
@@ -144,6 +171,7 @@ int Loop () {
 		imshow("main monitor", matMainMonitor);	
 
 		/* Release */
+		/*
 		left.release();
 		right.release();
 		matRotate.release();
@@ -151,9 +179,10 @@ int Loop () {
 		frameL.release();
 		frameR.release();
 		composition.release();
+		*/
 
 		/* End when ESC is pressed */
-		if (waitKey(13) == 27) {
+		if (waitKey(delay) == 27) {
 			std::cout << "ESC key is pressed by user" << std::endl;
 			return 1; 
 		}
