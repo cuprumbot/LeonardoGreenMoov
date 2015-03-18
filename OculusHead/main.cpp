@@ -71,7 +71,10 @@ int Init () {
 	cvMoveWindow("main monitor", 0, 0);
 
 	/* Connect to serial */
-	SP = new Serial("\\\\.\\COM40");
+	SP = new Serial("\\\\.\\COM25");
+
+	//comentario
+
 	if (SP->IsConnected() == false) {
 		return -2;
 	} else {
