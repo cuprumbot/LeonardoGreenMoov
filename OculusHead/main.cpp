@@ -92,9 +92,103 @@ void LeapListener::onFrame(const Controller& controller) {
 		const Leap::Vector normal = hand.palmNormal();
 		const Leap::Vector direction = hand.direction();
 	
-		// Get the Arm bone
-		Arm arm = hand.arm();
+	// Get the Arm bone
+	Arm arm = hand.arm();
+	int aux = 0;
 
+	//Arm 45 - 170
+	int armAngle;	
+	float handposz = hand.palmPosition()[2];
+	float lengthBicep = 250;
+	aux = handposz/lengthBicep; //Por si la division no esta en [-1, 1]
+	if(aux > 1) {
+		armAngle = 0;
+	} else if (aux < -1) {
+		armAngle = 180;
+	} else {
+		armAngle = asin(handposz/lengthBicep)*180/PI;	
+	}
+
+		//Da angulos de -90 a 90
+	if(armAngle < 0){
+		armAngle = abs(armAngle) + 90; //Para enfrente es negativo por lo tanto volverlo positivo y sumarte 90 del otro plano
+	} else {
+		armAngle = 90 - armAngle; //Ajustar el angulo porque da el complemento
+	}
+	
+
+	//elbow 5 - 95
+	int armPitchAngle = arm.direction().pitch()*180/PI;
+		//Da angulos de -90 a 90
+	if (armPitchAngle < 0) {
+		armPitchAngle = 90 - abs(armPitchAngle); //negativo es abajo y da el complemento
+	} else {
+		armPitchAngle = armPitchAngle + 90; //positivo mas 90 de los negativos
+	}
+
+	if(armAngle > 89) {
+		armPitchAngle = armPitchAngle - (armAngle - 90); //Al levantar el brazo el angulo del codo cambia
+														//(-90 porque en 90 el codo esta normal en la posicion 90 del brazo)
+	}		
+	if(armPitchAngle > 95) {
+		armPitchAngle = 95;
+	}
+	if(armPitchAngle < 5) {
+		armPitchAngle = 5;
+	}
+	
+	//Bicep rot 20 - 180
+	int armYawAngle = arm.direction().yaw()*180/PI;
+	armYawAngle = (65 + armYawAngle)*1.12; //95 es el centro, y factor multiplicativo
+
+	if(armYawAngle > 180) {
+		armYawAngle = 180;
+	}
+	if(armYawAngle < 21) {
+		armYawAngle = 20;
+	}
+	armYawAngle = 180 - armYawAngle; //Darle vuelta al angulo
+
+
+	//Shoulder 30 - 90 (65 por cables de momento)
+	int elbowposx =  arm.elbowPosition()[0]; //posicion del codo en x esta entre [-300,-200]
+	int shoulderAngle;
+	aux = abs(elbowposx) - 200; //volverlo un valor entre [0, 160]
+	if(aux < 0) {
+		aux = 0;
+	} else if (aux > 160) {
+		aux = 160;
+	}
+	shoulderAngle = aux * 0.63; //factor multiplicativo para que quede entre [30,90]
+	if(shoulderAngle < 30){
+		shoulderAngle = 30;
+	} else if (shoulderAngle > 65) {
+		shoulderAngle = 65;	
+	}
+	//Hand roll 0 - 180
+	int handRollAngle = hand.palmNormal().roll()*180/PI;
+	if(handRollAngle < 0){ //ignorar la parte negativa 
+		handRollAngle = abs(handRollAngle);
+		if(handRollAngle < 91) {
+			handRollAngle = 0;
+		} else {
+			handRollAngle = 180;
+		}
+	}
+	handRollAngle = 180 - handRollAngle; //Complemento del angulo
+
+	std::cout << std::string(2, ' ') 
+			  
+			  
+			  <<  "Elbow pitch: " << armPitchAngle << "\n"
+			  << " Bicep yaw: " << armYawAngle << "\n"	
+			  << "Arm angle " << armAngle<<"\n"
+			  << "Shoulder angle " << shoulderAngle << "\n"
+			  << " Hand roll: " << handRollAngle <<"\n"
+
+			  << std::endl;
+		char c, c1,c2,c3,c4, c5; //Para escribir al arduino
+		
 		// Get fingers
 		const FingerList fingers = hand.fingers();
 
@@ -113,8 +207,9 @@ void LeapListener::onFrame(const Controller& controller) {
 			// Get finger bones
 			Leap::Vector vectors[3];	
 			int angle, angle1, angle2;
-
-			if(fl == fingers.begin()){
+			//Version angulos completos
+			/*
+			if(fl == fingers.begin()){ //Angulo dedo gordo
 				Bone::Type boneType = static_cast<Bone::Type>(1);
 				Bone bone = finger.bone(boneType);
 				vectors[0] = bone.direction();
@@ -129,19 +224,15 @@ void LeapListener::onFrame(const Controller& controller) {
 				
 				angle1 = vectors[0].angleTo(vectors[1])* 180/PI;
 				angle2 = vectors[1].angleTo(vectors[2])* 180/PI;
-				//angle = (angle1 + angle2)*2;
-				
-				//cout << "a1: " << (int)angle1 << "\ta2: " << (int)angle2 <<endl;
+				if(angle1 < 21) {
+					angle1 = 0;
+				}
+				if(angle2 < 41) {
+					angle2 = 0;
+				}
+				angle = (angle1 + angle2)*2;	
 
-				//TO DO: caso especial del pulgar
-				if (angle1 > 35) angle = 180;
-				else if (angle2 > 40) angle = 180;
-				else angle = 0;
-
-				//if (angle == 180) cout << "CERRADO" << endl;
-				//else cout << "ABIERTO" << endl;
-
-			} else {
+			} else {    //Angulo los demas dedos
 				for (int b = 0; b < 3; ++b) {
 					Bone::Type boneType = static_cast<Bone::Type>(b);
 					Bone bone = finger.bone(boneType);
@@ -156,7 +247,14 @@ void LeapListener::onFrame(const Controller& controller) {
 			if(angle > 180){
 				angle = 180;
 			}
-			
+			*/
+			//Version abierto cerrado
+			if(finger.isExtended()) {
+				angle = 0;
+			} else {
+				angle = 180;
+			}
+
 			/*
 			std::cout << std::string(6, ' ') << "Angulo1: "<<angle1 <<" Angulo2: "<< angle2 <<" Angulo completo: " << angle << std::endl;
 			std::cout << std::string(2, ' ') << "Angulo completo: " << angle << std::endl;
@@ -169,7 +267,18 @@ void LeapListener::onFrame(const Controller& controller) {
 
 			counter++;
 		} //for end: FingerList iterator
-	
+		//!!!!!!!!!!!!CHECK THIS DATA!!!!!!!!!!!!!!!!!!
+		c1 = (char)(armPitchAngle);
+		c2 = (char)(armYawAngle);
+		c3 = (char)(armAngle);
+		c4 = (char)(shoulderAngle);
+		c5 = (char)(handRollAngle);
+		SP ->WriteData(&c1,1);	 
+		SP ->WriteData(&c2,1);
+		SP ->WriteData(&c3,1);
+		SP ->WriteData(&c4,1);
+		SP ->WriteData(&c5,1);
+		//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	} //for end: HandList iterator
 
 	if (!frame.hands().isEmpty()) {
