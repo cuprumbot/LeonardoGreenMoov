@@ -7,8 +7,8 @@ int incomingByte = 0;
 
 void setup() {
   Serial.begin(115200);
-  yaw.attach(11);
-  pitch.attach(10);
+  yaw.attach(10);
+  pitch.attach(11);
 }
 
 void loop() {
@@ -18,11 +18,11 @@ void loop() {
   while (Serial.available() == 0);
   incomingByte = Serial.read();
   //analogWrite(10, incomingByte);
-  yaw.write(incomingByte);
+  pitch.write(incomingByte);
   
   /* Pitch */
   while (Serial.available() == 0);
   incomingByte = Serial.read();
   //analogWrite(11, incomingByte);
-  pitch.write(incomingByte);
+  yaw.write(incomingByte);
 }

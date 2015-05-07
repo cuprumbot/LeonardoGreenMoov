@@ -2,7 +2,13 @@
 #include <string.h>
 #include <thread>
 #include <chrono>
+#include <iostream>
+#include <string.h>
+#include <thread>
+#include <chrono>
 #include <math.h>
+
+/* ola ke ase */
 
 /* VR */
 #include "OVR.h"
@@ -132,7 +138,7 @@ void LeapListener::onFrame(const Controller& controller) {
 				else if (angle2 > 40) angle = 180;
 				else angle = 0;
 
-				if (angle == 180) cout << "CERRADO" << endl;
+				//if (angle == 180) cout << "CERRADO" << endl;
 				//else cout << "ABIERTO" << endl;
 
 			} else {
@@ -216,7 +222,7 @@ int Init () {
 	cvMoveWindow("main monitor", 0, 0);
 
 	/* Connect to serial */
-	SP = new Serial("\\\\.\\COM41");	//TO DO: pedir numero de puerto en consola
+	SP = new Serial("\\\\.\\COM43");	//TO DO: pedir numero de puerto en consola
 
 	//comentario
 
@@ -277,6 +283,10 @@ int Loop () {
 				} else if (eyeYaw < -90) {
 					cYaw = (char)180;
 				}
+			} else if ((eyePitch+90) >= 170) {
+				cPitch = (char)180;
+			} else {
+				cPitch = (char)0;
 			}
 
 			/* Roll */
@@ -296,6 +306,7 @@ int Loop () {
 				SP->WriteData(&c, 1);
 			}
 
+			/*
 			cout << "Yaw: " << (int)cYaw 
 				<< "\tPitch: " << (int)cPitch 
 				<< "\tFingers: " 
@@ -305,8 +316,9 @@ int Loop () {
 					<< (int)originalAngles[3] << "\t"
 					<< (int)originalAngles[4] << "\t"
 				<< endl;
+			*/
 
-			/*
+			
 			cout << "Yaw: " << (int)cYaw 
 				<< "\tPitch: " << (int)cPitch 
 				<< "\tFingers: " 
@@ -316,7 +328,7 @@ int Loop () {
 					<< (int)fingerAngles[3] << "\t"
 					<< (int)fingerAngles[4] << "\t"
 				<< endl;
-			*/
+			
 			//counter = 1;
 		//}
 
