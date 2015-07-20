@@ -50,10 +50,10 @@ void loop() {
       thumb, index and middle are connected backwards
       the Leap reader will take care of the values for the arm servos
     */
-    if (i == 2 || i == 3 || i == 4) {
-      allServos[i].write(180 - incomingByte);
-    } else {
+    //if (i == 2 || i == 3 || i == 4) {
+    //  allServos[i].write(180 - incomingByte);
+    //} else {
       allServos[i].write(incomingByte);
-    }
+    //}
   }
 }
