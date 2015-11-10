@@ -21,6 +21,19 @@
 /* Leap */
 #include "Leap.h"
 
+#define UNLOCK_LIMIT_LEFT		150
+#define UNLOCK_LEFT				190
+#define UNLOCK_LIMIT_RIGHT		 30
+#define UNLOCK_RIGHT			350
+#define HARDLOCK_LIMIT_LEFT		130
+#define HARDLOCK_LIMIT_RIGHT	 50
+
+#define REST_ARMPITCH			 80
+#define REST_ARMYAW				 90
+#define REST_ARMANGLE			 90
+#define REST_SHOULDERANGLE		 20
+#define REST_HANDROLLANGLE		 0
+
 using namespace Leap;
 using namespace cv;
 using namespace std;
@@ -53,9 +66,9 @@ int		fps = 60;
 Serial* SP;
 
 /* Leap */
-int  originalAngles[] = {0,0,0,0,0};
+int  originalAngles[] = {180,180,180,180,180};
 char fingerAngles[] = {180,180,180,180,180};
-char armAngles[] = {45,115,90,40,90};
+char armAngles[] = {REST_ARMPITCH, REST_ARMYAW, REST_ARMANGLE, REST_SHOULDERANGLE, REST_HANDROLLANGLE};
 bool isHandPresent = false;
 
 /*
@@ -81,14 +94,14 @@ void LeapListener::onFrame(const Controller& controller) {
 	HandList hands = frame.hands();
 	//Default position
 	//bicep
-	int armAngle = 90;
+	int armAngle = REST_ARMPITCH;
 	//elbow
-	int armPitchAngle = 80;
+	int armPitchAngle = REST_ARMYAW;
 	//yaw
-	int armYawAngle = 90;
+	int armYawAngle = REST_ARMPITCH;
 	//etc
-	int shoulderAngle = 30;
-	int handRollAngle = 90;
+	int shoulderAngle = REST_SHOULDERANGLE;
+	int handRollAngle = REST_HANDROLLANGLE;
 	//Para escribir al arduino
 	char c, c1, c2, c3, c4, c5;
 
@@ -104,16 +117,18 @@ void LeapListener::onFrame(const Controller& controller) {
 	
 		// Get the Arm bone
 		Arm arm = hand.arm();
-		int aux = 0;
+		float aux = 0;
 
-		//Arm 45 - 170	
+		//Arm 45 - 175	
 		float handposz = hand.palmPosition()[2];
 		float lengthBicep = 250;
 		aux = handposz/lengthBicep;		//Por si la division no esta en [-1, 1]
 		if(aux > 1) {
-			armAngle = 0;
+			armAngle = 45;
+			cout << "CHECK HANDPOSZ 45" << endl;
 		} else if (aux < -1) {
-			armAngle = 180;
+			armAngle = 175;
+			cout << "CHECK HANDPOSZ 175" << endl;
 		} else {
 			armAngle = asin(handposz/lengthBicep)*180/PI;	
 		}
@@ -152,25 +167,25 @@ void LeapListener::onFrame(const Controller& controller) {
 		if(armYawAngle > 180) {
 			armYawAngle = 180;
 		}
-		if(armYawAngle < 21) {
+		if(armYawAngle < 20) {
 			armYawAngle = 20;
 		}
 		armYawAngle = 180 - armYawAngle;				//Darle vuelta al angulo
 
-		//Shoulder 30 - 90 (65 por cables de momento)
+		//Shoulder 20 - 80 
 		int elbowposx =  arm.elbowPosition()[0];		//Posicion del codo en x esta entre [-300,-200]
-		aux = abs(elbowposx) - 200;						//Volverlo un valor entre [0, 160]
+		aux = abs(elbowposx) - 200;						//Volverlo un valor entre [0, 100]
 		if(aux < 0) {
 			aux = 0;
-		} else if (aux > 160) {
-			shoulderAngle = aux * 0.63;					//Factor multiplicativo para que quede entre [30,90]
-			if(shoulderAngle < 30){
-				shoulderAngle = 30;
-			} else if (shoulderAngle > 65) {
-				shoulderAngle = 65;	
-				aux = 160;
-			}
+		} else if (aux > 100) {
+			aux = 100;
 		}
+		shoulderAngle = aux * 0.8;					//Factor multiplicativo para que quede entre [30,80]
+		if(shoulderAngle < 20){
+			shoulderAngle = 20;
+		} else if (shoulderAngle > 80) {
+			shoulderAngle = 80;		
+		} // BROLO CHANGED A LOT OF STUFF HERE
 
 		//Hand roll 0 - 180
 		handRollAngle = hand.palmNormal().roll()*180/PI;
@@ -232,11 +247,11 @@ void LeapListener::onFrame(const Controller& controller) {
 		fingerAngles[3] = 180;
 		fingerAngles[4] = 180;
 		
-		armAngles[0] = 10;
-		armAngles[1] = 130;
-		armAngles[2] = 90;
-		armAngles[3] = 30;
-		armAngles[4] = 90;
+		armAngles[0] = REST_ARMPITCH;
+		armAngles[1] = REST_ARMYAW;
+		armAngles[2] = REST_ARMANGLE;
+		armAngles[3] = REST_SHOULDERANGLE;
+		armAngles[4] = REST_HANDROLLANGLE;
 	}
 }
 /*
@@ -314,8 +329,8 @@ int Init () {
 		Connect to serial to comunicate with Arduino
 		================================================================================ */
 	if (arduinoEnabled) {
-		//SP = new Serial("\\\\.\\COM43");
-		SP = new Serial("COM4");				// TO DO: Cambiar el nombre a minusculas
+		SP = new Serial("\\\\.\\COM13");
+		//SP = new Serial("COM4");				// TO DO: Cambiar el nombre a minusculas
 
 		if (SP->IsConnected() == false) return -2;
 		else if (debugPrint) cout << "Serial OK!" << endl;
@@ -355,10 +370,14 @@ int Loop () {
 	bool hardLocked = false;
 	int hardStatus = 0;
 
+	String s;
+
 	bool bSuccessL;
 	bool bSuccessR;
 
 	while (true) {
+		system("cls");
+
 		/*	================================================================================
 			OCULUS
 			Read position and save angles of headset to variables
@@ -407,7 +426,7 @@ int Loop () {
 					
 					if (hardLocked) {
 
-						cout << "HARD" << endl;
+						cout << "HARD LOCKED" << lockYaw << endl;
 						
 						if (hardStatus == 1 && (eyePitch+90) > 135) {
 							cout << "FIRST STEP" << endl;
@@ -416,6 +435,7 @@ int Loop () {
 							cout << "SECOND STEP" << endl;
 							hardStatus = 3;
 						} else if (hardStatus == 3 && (eyePitch+90) > 135) {
+							cout << "HARD LOCK REMOVED" << endl;
 							hardLocked = false;
 							locked = false;
 							movStatus = "";
@@ -427,81 +447,62 @@ int Loop () {
 
 					} else if (locked) {
 
-						if (readYaw == lastYaw) {								//It was returned to where it locked
-							
-							if ((currYaw == 0 && lockYaw > 355) || (currYaw == 180 && lockYaw < 185)) {
-								locked = false;									//Unlock it
-								movStatus = "";
-							}
+						cout << "LOCKED" << endl;
 
-						} else {
-
-							if ((currYaw == 0 && lockYaw < 135) || (currYaw == 180 && lockYaw > 45 && lockYaw < 135)) {
-								//hardLocked = true;
-								hardLocked = false;
+						// It was returned to where it locked, unlock it
+						if (	(currYaw == 0 && (readYaw < UNLOCK_LIMIT_RIGHT || readYaw > UNLOCK_RIGHT))
+							||	(currYaw == 180 && (readYaw > UNLOCK_LIMIT_LEFT && readYaw < UNLOCK_LEFT))	)
+						{
+							locked = false;										//Unlock it
+							movStatus = "";
+							cout << "UNLOCKING..." << endl;
+						}
+						else
+						{
+							if ( readYaw > HARDLOCK_LIMIT_RIGHT && readYaw < HARDLOCK_LIMIT_LEFT )
+							{
+								
+								//hardLocked = false;
+								
+								hardLocked = true;
 								movStatus = "--- HARD LOCK ---";
 								hardStatus = 1;
 								currYaw = 90;									//Center head
 								cPitch = (char)90;								//Override pitch
+								
 							}
-
 						}
 
-
-						cout << "CURR YAW:   " << currYaw << "   LAST YAW:   " << lastYaw << "   LOCK YAW:   " << lockYaw << endl;
+						//cout << "CURR YAW:   " << currYaw << "   LAST YAW:   " << lastYaw << "   LOCK YAW:   " << lockYaw << "   READ YAW:   " << readYaw << endl;
+						cout << "last READ yaw:\t" << readYaw << "\tlast VALID yaw:\t" << currYaw << endl;
 
 					} else {													//Not locked
 
 						if (readYaw < 0 || readYaw > 180) {						//Went out of movement range
 
-							//locked = true;
-							locked = false;
+							locked = true;
+							//locked = false;
 							movStatus = "LOCKED";
-
-							if (lastYaw < 0)
+							
+							if (readYaw < UNLOCK_LIMIT_RIGHT || readYaw > UNLOCK_RIGHT)
 								currYaw = 0;									//Right, lowest valid angle
-							else if (lastYaw > 170)
+							else if (readYaw > UNLOCK_LIMIT_LEFT && readYaw < UNLOCK_LEFT)
 								currYaw = 180;									//Left, highest valid angle
 
 						} else {												//Valid movement range
 							currYaw = readYaw;
 						}
 
-						cout << "CURR YAW:   " << currYaw << "   LAST YAW:   " << lastYaw << "   LOCK YAW:   " << lockYaw << endl;
-
+						//system("cls");
+						//cout << "CURR YAW:   " << currYaw << "   LAST YAW:   " << lastYaw << "   LOCK YAW:   " << lockYaw << "   READ YAW:   " << readYaw << endl;
+						cout << "last READ yaw:\t\t" << readYaw << endl;
 					}
 
 					cYaw = (char)currYaw;
 
-					/*if (readYaw < 0 || readYaw > 180) {							//Reading went out of valid range
-						
-						locked = true;											//Lock it
-
-						if (lastYaw < 10) {
-							currYaw = 0;										//Right
-						} else if (lastYaw > 170) {
-							currYaw = 180;										//Left
-						}
-
-					} else {
-
-						if (locked) {											//It was locked
-
-							if (readYaw == lastYaw) {							//It was returned to where it locked
-
-								if ((currYaw = 0 && lockYaw > 355) || (currYaw = 180 && lockYaw < 185))
-
-									locked = false;									//Unlock it
-							}
-							
-						} else {
-							
-							currYaw = readYaw;
-						}
-					}*/
 				}
 
-				//cout << "CURR YAW:   " << currYaw << "   LAST YAW:   " << lastYaw << "   LOCK YAW:   " << lockYaw << endl;
+
 			} else if ((eyePitch+90) >= 170) {
 				cPitch = (char)180;
 			} else {
@@ -509,7 +510,7 @@ int Loop () {
 			}
 
 			if (debugPrint) {
-				cout << "Mov status: " << movStatus << endl;
+				//cout << "Mov status: " << movStatus << endl;
 			}
 		}
 
@@ -517,12 +518,13 @@ int Loop () {
 			ARDUINO
 			Write to serial the data from Oculus and Leap
 			================================================================================ */
-		if (leapEnabled) {
+		if (arduinoEnabled) {
+			/* head */
 			SP->WriteData(&cYaw, 1);
 			SP->WriteData(&cPitch, 1);
 			
 			for (int arrIndex = 0; arrIndex < 5; arrIndex++) {
-				fingerAngles[arrIndex] = (originalAngles[arrIndex] < 70) ? 0 : 180;
+				fingerAngles[arrIndex] = (originalAngles[arrIndex] < 70) ? 0 : 180;		
 				c = fingerAngles[arrIndex];
 				SP->WriteData(&c, 1);
 			}
@@ -531,26 +533,35 @@ int Loop () {
 				SP->WriteData(&c, 1);
 			}
 
-			if (debugPrint) {
-				cout << "Yaw: " << (int)cYaw 
-					<< "\tPitch: " << (int)cPitch 
-					<< "\tFingers: " 
-						<< (int)fingerAngles[0] << "\t"
-						<< (int)fingerAngles[1] << "\t"
-						<< (int)fingerAngles[2] << "\t"
-						<< (int)fingerAngles[3] << "\t"
-						<< (int)fingerAngles[4] << "\t"
-					<< endl;
-
-				cout << std::string(2, ' ') 
-				  << "BI\t" << (int)armAngles[0] << "\t"
-				  << "HY\t" << (int)armAngles[1] << "\t"	
-				  << "AA\t" << (int)armAngles[2] << "\t"
-				  << "SA\t" << (int)armAngles[3] << "\t"
-				  << "W \t" << (int)armAngles[4] << "\t"
-				  << std::endl;
-			}
 		}
+
+		if (debugPrint) {
+				//system("cls");
+
+				cout << "last READ pitch:\t" << (int)cPitch << endl;
+
+				
+
+				if (isHandPresent) {
+					cout << "\nArm:\n"
+					  << "Codo     \t" << (int)((armAngles[0]+255) % 255) << "\n"
+					  << "Rotacion \t" << (int)((armAngles[1]+255) % 255) << "\n"	
+					  << "Brazo    \t" << (int)((armAngles[2]+255) % 255) << "\n"
+					  << "Hombro   \t" << (int)((armAngles[3]+255) % 255) << "\n"
+					  << "Muneca   \t" << (int)((armAngles[4]+255) % 255) << "\n"
+					  << std::endl;
+
+					cout << "\nFingers:\n" 
+							<< (int)fingerAngles[0] << "\t"
+							<< (int)fingerAngles[1] << "\t"
+							<< (int)fingerAngles[2] << "\t"
+							<< (int)fingerAngles[3] << "\t"
+							<< (int)fingerAngles[4] << "\t"
+						<< endl;
+				} else {
+					cout << "\nArm: NO ARM PRESENT" << endl;
+				}
+			}
 
 		/*	================================================================================
 			CAMERA
@@ -587,21 +598,20 @@ int Loop () {
 			/* Show in screen */
 			imshow("inMoov", composition);
 			imshow("main monitor", matMainMonitor);	
+		} else {
+			composition = Mat::zeros(200, 600, frameL.type());
+			putText(composition, "Camaras desactivadas.", Point(0,50), FONT_HERSHEY_SIMPLEX, 0.8, Scalar(255,255,255), 1);
+			putText(composition, "Presione ESC para detener el programa.", Point(0,100), FONT_HERSHEY_SIMPLEX, 0.8, Scalar(255,255,255), 1);
+
+			imshow("main monitor", composition);
 		}
 
 		/* End when ESC is pressed */
 		if (waitKey(delay) == 27) {
-			std::cout << "ESC key is pressed by user" << std::endl;
+			std::cout << "Tecla ESC presionada. El programa finalizara." << std::endl;
+			getline(cin,s);
 			return 1; 
 		}
-
-		//e = getchar();
-/*
-		if (e == '.') {
-			std::cout << "Closed by user" << std::endl;
-			return 1;
-		}
-*/
 	}
 }
 
@@ -615,6 +625,7 @@ int main (int argc, const char* argv[]) {
 
 	String disable;
 	cout << "Ingrese funciones a desactivar [camera, oculus, leap, arduino]. ENTER para continuar." << endl;
+	
 	getline(cin,disable);
 
 	if (disable.find("camera") != string::npos) {
@@ -633,14 +644,18 @@ int main (int argc, const char* argv[]) {
 		leapEnabled = false;
 		cout << "Leap disabled" << endl;
 	}
-	/*
-	oculusEnabled = false;
-	cameraEnabled = false;
-	leapEnabled = false;
-	arduinoEnabled = false;
-	*/
-	if (Init() > 0) {
-		Loop();
-		End();
+
+	//cameraEnabled = false;
+	//leapEnabled = false;
+	//arduinoEnabled = false;
+
+	if (!cameraEnabled && !oculusEnabled && !arduinoEnabled && !leapEnabled) {
+		cout << "\nTodas las funciones desactivadas. El programa terminara." << endl;
+		getline(cin,disable);
+	} else {
+		if (Init() > 0) {
+			Loop();
+			End();
+		}
 	}
 }
